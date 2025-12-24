@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.0</title>
+    <title>批量数据分离与核对工具 V2.1 (UUID版)</title>
     <style>
         :root {
             --primary: #2563eb;       /* 主色调：蓝 */
-            --bg: #f8fafc;           /* 背景色 */
-            --card-bg: #ffffff;      /* 卡片背景 */
-            --border: #e2e8f0;       /* 边框色 */
-            --text: #334155;         /* 字体色 */
-            --success: #10b981;      /* 绿色 */
-            --warning: #f59e0b;      /* 橙色 */
+            --bg: #f8fafc;            /* 背景色 */
+            --card-bg: #ffffff;       /* 卡片背景 */
+            --border: #e2e8f0;        /* 边框色 */
+            --text: #334155;          /* 字体色 */
+            --success: #10b981;       /* 绿色 */
+            --warning: #f59e0b;       /* 橙色 */
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -190,7 +190,7 @@
 <body>
 
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.0 (防错版)</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.1 (UUID优化版)</h1>
 
     <div class="card">
         <div class="card-header">
@@ -251,22 +251,22 @@
     <div class="card">
         <div class="card-header">
             <span>功能 2: 批量提取卡密</span>
-            <span class="badge">正则提取</span>
+            <span class="badge">UUID正则提取</span>
         </div>
         <div class="col">
-            <label>输入杂乱文本 (包含卡密、额度、有效期等):</label>
-            <textarea id="input2" style="height: 100px;" placeholder="格式示例：&#10;卡密: mio-a37fb0b5-0c35... 额度: 0 有效期: 1小时"></textarea>
+            <label>输入杂乱文本 (支持“卡号：xxx”或混合文本):</label>
+            <textarea id="input2" style="height: 120px;" placeholder="智能提取示例 (自动过滤干扰文字)：&#10;卡号：cf8bc90a-204c-4775-9437-b5dc859fd1d7&#10;卡号: 72786df4-5a5e-4fa3-9116-60d23c9b9b63&#10;..."></textarea>
             
             <div class="btn-group">
-                <button class="btn-primary" onclick="processExtract()">⚡ 一键提取卡密</button>
+                <button class="btn-primary" onclick="processExtract()">⚡ 一键提取 UUID</button>
                 <button class="btn-clear" onclick="clear2()">清空</button>
             </div>
 
             <label>
-                提取结果 (纯卡密) <span id="count2" class="badge">0 行</span>
+                提取结果 (纯净卡密) <span id="count2" class="badge">0 行</span>
                 <button class="btn-copy" onclick="copyText('out2')">复制结果</button>
             </label>
-            <textarea id="out2" readonly placeholder="这里只显示提取出的 mio-xxxx 卡密，自动去除其他文字..." style="height: 150px;"></textarea>
+            <textarea id="out2" readonly placeholder="这里将只显示提取出的 36位 UUID 卡密，自动去除“卡号：”等前缀..." style="height: 150px;"></textarea>
         </div>
     </div>
 </div>
@@ -339,7 +339,6 @@
         // 隐藏旧的核对表，强制用户重新点生成
         document.getElementById('checkArea').style.display = 'none';
 
-        // 自动检查行数是否异常
         if (globalLeftData.length !== globalRightData.length) {
             alert("❌ 警告：左右行数不匹配！请务必检查。");
         }
@@ -355,24 +354,19 @@
         const tbody = document.querySelector('#checkTable tbody');
         tbody.innerHTML = ''; // 清空
 
-        // 遍历生成表格
         for (let i = 0; i < globalLeftData.length; i++) {
             const tr = document.createElement('tr');
             
-            // 序号
             const tdIdx = document.createElement('td');
             tdIdx.className = 'idx-col';
             tdIdx.textContent = i + 1;
             
-            // 账号
             const tdAcc = document.createElement('td');
             tdAcc.textContent = globalLeftData[i];
             
-            // Token
             const tdToken = document.createElement('td');
             tdToken.textContent = globalRightData[i];
             
-            // 如果是异常数据标红
             if (globalRightData[i].includes('⚠️')) {
                 tdToken.style.color = 'red';
                 tdToken.style.fontWeight = 'bold';
@@ -385,26 +379,36 @@
         }
 
         document.getElementById('checkArea').style.display = 'block';
-        // 滚动到表格位置
         document.getElementById('checkArea').scrollIntoView({behavior: "smooth"});
     }
 
-    // --- 功能 2: 提取卡密 ---
+    // --- 功能 2: 提取 UUID 卡密 (更新部分) ---
     function processExtract() {
         const input = document.getElementById('input2').value;
-        const lines = input.split('\n');
-        let results = [];
-        const regex = /mio-[a-zA-Z0-9-]+/;
+        if (!input.trim()) {
+            alert("请先输入或粘贴包含卡密的内容！");
+            return;
+        }
+        
+        // 正则表达式：匹配 8-4-4-4-12 格式的十六进制字符串 (UUID标准格式)
+        // 示例：cf8bc90a-204c-4775-9437-b5dc859fd1d7
+        // 使用 'g' 参数进行全局匹配，忽略 "卡号：" 等前缀，'i' 忽略大小写
+        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+        
+        // match() 方法会直接返回一个数组，包含所有找到的 UUID
+        const matches = input.match(uuidRegex);
+        
+        // 如果没找到匹配项，返回空数组
+        const results = matches ? matches : [];
 
-        lines.forEach(line => {
-            const match = line.match(regex);
-            if (match) {
-                results.push(match[0]);
-            }
-        });
-
+        // 将提取结果填入输出框
         document.getElementById('out2').value = results.join('\n');
         document.getElementById('count2').innerText = results.length + ' 行';
+        
+        // 简单的用户反馈
+        if (results.length === 0) {
+            alert("未找到符合 UUID 格式 (如 cf8bc90a-...) 的卡密，请检查输入内容。");
+        }
     }
 
     // --- 辅助功能 ---
@@ -429,7 +433,6 @@
         el.setSelectionRange(0, 99999);
         document.execCommand('copy');
         
-        // 按钮反馈
         const btn = document.activeElement;
         if(btn.tagName === 'BUTTON') {
             const oldText = btn.innerText;
