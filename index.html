@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.1 (UUID版)</title>
+    <title>批量数据分离与核对工具 V2.2 (链接提取版)</title>
     <style>
         :root {
             --primary: #2563eb;       /* 主色调：蓝 */
@@ -190,7 +190,7 @@
 <body>
 
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.1 (UUID优化版)</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.2 (链接提取版)</h1>
 
     <div class="card">
         <div class="card-header">
@@ -251,14 +251,14 @@
     <div class="card">
         <div class="card-header">
             <span>功能 2: 批量提取卡密</span>
-            <span class="badge">UUID正则提取</span>
+            <span class="badge">链接参数提取</span>
         </div>
         <div class="col">
-            <label>输入杂乱文本 (支持“卡号：xxx”或混合文本):</label>
-            <textarea id="input2" style="height: 120px;" placeholder="智能提取示例 (自动过滤干扰文字)：&#10;卡号：cf8bc90a-204c-4775-9437-b5dc859fd1d7&#10;卡号: 72786df4-5a5e-4fa3-9116-60d23c9b9b63&#10;..."></textarea>
+            <label>输入包含链接的文本 (支持批量、混合文本):</label>
+            <textarea id="input2" style="height: 120px;" placeholder="支持提取示例 (自动提取 card= 后面的代码)：&#10;https://freespaces.shareaiworks.com/?card=U8Y9DIVSDR045&#10;https://freespaces.shareaiworks.com/?card=ABC789XYZ123&#10;..."></textarea>
             
             <div class="btn-group">
-                <button class="btn-primary" onclick="processExtract()">⚡ 一键提取 UUID</button>
+                <button class="btn-primary" onclick="processExtract()">⚡ 一键提取卡密</button>
                 <button class="btn-clear" onclick="clear2()">清空</button>
             </div>
 
@@ -266,10 +266,10 @@
                 提取结果 (纯净卡密) <span id="count2" class="badge">0 行</span>
                 <button class="btn-copy" onclick="copyText('out2')">复制结果</button>
             </label>
-            <textarea id="out2" readonly placeholder="这里将只显示提取出的 36位 UUID 卡密，自动去除“卡号：”等前缀..." style="height: 150px;"></textarea>
+            <textarea id="out2" readonly placeholder="这里将只显示从链接中提取出的卡密 (如 U8Y9DIVSDR045)..." style="height: 150px;"></textarea>
         </div>
     </div>
-</div>
+    </div>
 
 <script>
     // --- 全局数据变量，用于生成核对表 ---
@@ -382,32 +382,34 @@
         document.getElementById('checkArea').scrollIntoView({behavior: "smooth"});
     }
 
-    // --- 功能 2: 提取 UUID 卡密 (更新部分) ---
+    // --- 功能 2: 提取卡密 (核心修改部分) ---
     function processExtract() {
         const input = document.getElementById('input2').value;
         if (!input.trim()) {
-            alert("请先输入或粘贴包含卡密的内容！");
+            alert("请先输入包含链接的内容！");
             return;
         }
         
-        // 正则表达式：匹配 8-4-4-4-12 格式的十六进制字符串 (UUID标准格式)
-        // 示例：cf8bc90a-204c-4775-9437-b5dc859fd1d7
-        // 使用 'g' 参数进行全局匹配，忽略 "卡号：" 等前缀，'i' 忽略大小写
-        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+        // 正则表达式修改：匹配 card= 后面的字母和数字
+        // 解释：card= 是定位符，([a-zA-Z0-9]+) 是捕获组，抓取后面的所有字母数字
+        const regex = /card=([a-zA-Z0-9]+)/gi;
         
-        // match() 方法会直接返回一个数组，包含所有找到的 UUID
-        const matches = input.match(uuidRegex);
+        const results = [];
+        let match;
         
-        // 如果没找到匹配项，返回空数组
-        const results = matches ? matches : [];
+        // 循环查找所有匹配项
+        while ((match = regex.exec(input)) !== null) {
+            // match[1] 是括号里捕获的内容，即等号后面的卡密
+            results.push(match[1]);
+        }
 
         // 将提取结果填入输出框
         document.getElementById('out2').value = results.join('\n');
         document.getElementById('count2').innerText = results.length + ' 行';
         
-        // 简单的用户反馈
+        // 用户反馈
         if (results.length === 0) {
-            alert("未找到符合 UUID 格式 (如 cf8bc90a-...) 的卡密，请检查输入内容。");
+            alert("未找到符合格式的链接 (如 ...?card=XXXX)，请检查输入内容。");
         }
     }
 
