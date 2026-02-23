@@ -190,7 +190,7 @@
 <body>
 
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.2 (链接提取版)</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.3 (支持含连字符卡密版)</h1>
 
     <div class="card">
         <div class="card-header">
@@ -255,7 +255,7 @@
         </div>
         <div class="col">
             <label>输入包含链接的文本 (支持批量、混合文本):</label>
-            <textarea id="input2" style="height: 120px;" placeholder="支持提取示例 (自动提取 card= 后面的代码)：&#10;https://freespaces.shareaiworks.com/?card=U8Y9DIVSDR045&#10;https://freespaces.shareaiworks.com/?card=ABC789XYZ123&#10;..."></textarea>
+            <textarea id="input2" style="height: 120px;" placeholder="支持提取示例 (自动提取 card= 后面的代码)：&#10;https://freespaces.shareaiworks.com/?card=D70E585E-ED37-4F0C-BF33-B463B4DAF09E&#10;https://freespaces.shareaiworks.com/?card=ABC789XYZ123&#10;..."></textarea>
             
             <div class="btn-group">
                 <button class="btn-primary" onclick="processExtract()">⚡ 一键提取卡密</button>
@@ -266,7 +266,7 @@
                 提取结果 (纯净卡密) <span id="count2" class="badge">0 行</span>
                 <button class="btn-copy" onclick="copyText('out2')">复制结果</button>
             </label>
-            <textarea id="out2" readonly placeholder="这里将只显示从链接中提取出的卡密 (如 U8Y9DIVSDR045)..." style="height: 150px;"></textarea>
+            <textarea id="out2" readonly placeholder="这里将只显示从链接中提取出的卡密 (如 D70E585E-ED37...)..." style="height: 150px;"></textarea>
         </div>
     </div>
     </div>
@@ -390,9 +390,8 @@
             return;
         }
         
-        // 正则表达式修改：匹配 card= 后面的字母和数字
-        // 解释：card= 是定位符，([a-zA-Z0-9]+) 是捕获组，抓取后面的所有字母数字
-        const regex = /card=([a-zA-Z0-9]+)/gi;
+        // 修改点：加入了 \- 以支持带有横杠的卡密格式（如 UUID格式）
+        const regex = /card=([a-zA-Z0-9\-]+)/gi;
         
         const results = [];
         let match;
