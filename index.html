@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.2 (链接提取版)</title>
+    <title>批量数据分离与核对工具 V2.4</title>
     <style>
         :root {
-            --primary: #2563eb;       /* 主色调：蓝 */
-            --bg: #f8fafc;            /* 背景色 */
-            --card-bg: #ffffff;       /* 卡片背景 */
-            --border: #e2e8f0;        /* 边框色 */
-            --text: #334155;          /* 字体色 */
-            --success: #10b981;       /* 绿色 */
-            --warning: #f59e0b;       /* 橙色 */
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --text: #334155;
+            --success: #10b981;
+            --warning: #f59e0b;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -22,22 +22,12 @@
             padding: 20px;
             line-height: 1.5;
         }
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-        }
-        h1 {
-            text-align: center;
-            color: #1e293b;
-            font-size: 26px;
-            margin-bottom: 30px;
-            font-weight: 800;
-        }
-        /* 卡片样式 */
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { text-align: center; color: #1e293b; font-size: 26px; margin-bottom: 30px; font-weight: 800; }
         .card {
             background: var(--card-bg);
             border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
             padding: 24px;
             margin-bottom: 30px;
             border: 1px solid var(--border);
@@ -53,8 +43,6 @@
             justify-content: space-between;
             align-items: center;
         }
-        
-        /* 文本框样式 */
         textarea {
             width: 100%;
             height: 150px;
@@ -66,7 +54,7 @@
             resize: vertical;
             box-sizing: border-box;
             background-color: #f8fafc;
-            white-space: pre; /* 保持不换行，方便核对 */
+            white-space: pre;
             overflow-x: auto;
             line-height: 1.6;
         }
@@ -74,16 +62,9 @@
             outline: none;
             border-color: var(--primary);
             background-color: #fff;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
         }
-        
-        /* 按钮组 */
-        .btn-group {
-            margin: 15px 0;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+        .btn-group { margin: 15px 0; display: flex; gap: 10px; flex-wrap: wrap; }
         button {
             padding: 10px 20px;
             border: none;
@@ -98,14 +79,10 @@
         }
         .btn-primary { background-color: var(--primary); color: white; flex: 2; }
         .btn-primary:hover { background-color: #1d4ed8; }
-        
-        /* 核对按钮颜色 */
         .btn-check { background-color: var(--warning); color: #fff; flex: 1.5; }
         .btn-check:hover { background-color: #d97706; }
-
         .btn-clear { background-color: #94a3b8; color: white; flex: 1; }
         .btn-clear:hover { background-color: #64748b; }
-
         .btn-copy {
             background-color: var(--success);
             color: white;
@@ -117,69 +94,48 @@
             height: 24px;
         }
         .btn-copy:hover { background-color: #059669; }
-
-        /* 布局类 */
         .row { display: flex; gap: 20px; }
         .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
         label { margin-bottom: 6px; font-weight: 600; font-size: 14px; color: #475569; }
-        .badge {
-            font-size: 12px;
-            background: #e0f2fe;
-            color: #0369a1;
-            padding: 2px 8px;
-            border-radius: 99px;
-            font-weight: normal;
-        }
-
-        /* --- 核对表格样式 --- */
+        .badge { font-size: 12px; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 99px; font-weight: normal; }
         .check-area {
             margin-top: 20px;
             border: 2px dashed #cbd5e1;
             background: #fff;
             padding: 15px;
-            display: none; /* 默认隐藏 */
+            display: none;
             border-radius: 8px;
         }
-        .check-table-box {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-            font-family: Consolas, monospace;
-        }
-        th, td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: left;
-            vertical-align: middle;
-            white-space: nowrap; /* 不换行 */
-        }
-        th {
-            background-color: #f1f5f9;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            color: #64748b;
-        }
+        .check-table-box { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: Consolas, monospace; }
+        th, td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: middle; white-space: nowrap; }
+        th { background-color: #f1f5f9; position: sticky; top: 0; z-index: 10; color: #64748b; }
         tr:nth-child(even) { background-color: #f8fafc; }
-        tr:hover { background-color: #fff7ed; } /* 鼠标悬停高亮 */
+        tr:hover { background-color: #fff7ed; }
         .idx-col { width: 50px; text-align: center; color: #94a3b8; }
-        
-        /* 同步开关 */
-        .sync-toggle {
-            display: inline-flex;
+        .sync-toggle { display: inline-flex; align-items: center; font-size: 12px; color: var(--primary); cursor: pointer; user-select: none; margin-left: 10px; }
+
+        /* 参数名输入行 */
+        .param-row {
+            display: flex;
             align-items: center;
-            font-size: 12px;
-            color: var(--primary);
-            cursor: pointer;
-            user-select: none;
-            margin-left: 10px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
+        .param-row label { margin: 0; white-space: nowrap; }
+        .param-input {
+            height: 36px;
+            padding: 4px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+            width: 180px;
+            box-sizing: border-box;
+            background: #f8fafc;
+        }
+        .param-input:focus { outline: none; border-color: var(--primary); }
+        .param-hint { font-size: 12px; color: #94a3b8; }
 
         @media (max-width: 768px) {
             .row { flex-direction: column; }
@@ -188,10 +144,10 @@
     </style>
 </head>
 <body>
-
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.3 (支持含连字符卡密版)</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.4</h1>
 
+    <!-- 功能1 -->
     <div class="card">
         <div class="card-header">
             <span>功能 1: 账号与Token分离</span>
@@ -200,7 +156,6 @@
         <div class="col">
             <label>输入原始数据 (每行一条):</label>
             <textarea id="input1" style="height: 100px;" placeholder="格式示例：&#10;xguiwbrp59@outlook.com----GU5aPwtaWmJ7----lqmebxpc70120----rt_VgIcdk..."></textarea>
-            
             <div class="btn-group">
                 <button class="btn-primary" onclick="processSplit()">⚡ 1. 执行分离</button>
                 <button class="btn-check" onclick="showCheckTable()">🔍 2. 生成核对表 (必点)</button>
@@ -237,7 +192,7 @@
                 <div class="col">
                     <label>
                         后半部分 (Token) <span id="count1b" class="badge">0 行</span>
-                        <label class="sync-toggle" title="滚动左边，右边也会跟着动">
+                        <label class="sync-toggle">
                             <input type="checkbox" id="syncScroll" checked style="margin-right:4px;">🔒同步滚动
                         </label>
                         <button class="btn-copy" onclick="copyText('out1_right')">复制</button>
@@ -248,15 +203,24 @@
         </div>
     </div>
 
+    <!-- 功能2 -->
     <div class="card">
         <div class="card-header">
             <span>功能 2: 批量提取卡密</span>
             <span class="badge">链接参数提取</span>
         </div>
         <div class="col">
+
+            <!-- ★ 新增：参数名设置行 -->
+            <div class="param-row">
+                <label>提取参数名：</label>
+                <input type="text" id="paramName" class="param-input" value="card" placeholder="如 card、key、code...">
+                <span class="param-hint">💡 填写链接中 <code>=</code> 前面的参数名，默认 <b>card</b></span>
+            </div>
+
             <label>输入包含链接的文本 (支持批量、混合文本):</label>
-            <textarea id="input2" style="height: 120px;" placeholder="支持提取示例 (自动提取 card= 后面的代码)：&#10;https://freespaces.shareaiworks.com/?card=D70E585E-ED37-4F0C-BF33-B463B4DAF09E&#10;https://freespaces.shareaiworks.com/?card=ABC789XYZ123&#10;..."></textarea>
-            
+            <textarea id="input2" style="height: 120px;" placeholder="支持多种格式，例如：&#10;https://freespaces.shareaiworks.com/?card=D70E585E-ED37-4F0C-BF33-B463B4DAF09E&#10;https://www.987ai.vip/recharge?card=X2L4TMFCMGHF7TVM&#10;https://example.com/pay?key=ABC123XYZ&#10;..."></textarea>
+
             <div class="btn-group">
                 <button class="btn-primary" onclick="processExtract()">⚡ 一键提取卡密</button>
                 <button class="btn-clear" onclick="clear2()">清空</button>
@@ -266,25 +230,20 @@
                 提取结果 (纯净卡密) <span id="count2" class="badge">0 行</span>
                 <button class="btn-copy" onclick="copyText('out2')">复制结果</button>
             </label>
-            <textarea id="out2" readonly placeholder="这里将只显示从链接中提取出的卡密 (如 D70E585E-ED37...)..." style="height: 150px;"></textarea>
+            <textarea id="out2" readonly style="height: 150px;" placeholder="这里将显示提取出的卡密..."></textarea>
         </div>
     </div>
-    </div>
+</div>
 
 <script>
-    // --- 全局数据变量，用于生成核对表 ---
     let globalLeftData = [];
     let globalRightData = [];
 
-    // --- 同步滚动逻辑 ---
     const leftBox = document.getElementById('out1_left');
     const rightBox = document.getElementById('out1_right');
     const syncCheck = document.getElementById('syncScroll');
-    
-    let isSyncingLeft = false;
-    let isSyncingRight = false;
+    let isSyncingLeft = false, isSyncingRight = false;
 
-    // 左滚带右
     leftBox.onscroll = function() {
         if (!syncCheck.checked || isSyncingLeft) return;
         isSyncingRight = true;
@@ -292,7 +251,6 @@
         rightBox.scrollLeft = this.scrollLeft;
         setTimeout(() => isSyncingRight = false, 10);
     };
-    // 右滚带左
     rightBox.onscroll = function() {
         if (!syncCheck.checked || isSyncingRight) return;
         isSyncingLeft = true;
@@ -301,125 +259,84 @@
         setTimeout(() => isSyncingLeft = false, 10);
     };
 
-    // --- 功能 1: 分离逻辑 ---
     function processSplit() {
         const input = document.getElementById('input1').value;
         const lines = input.split('\n');
-        
         globalLeftData = [];
         globalRightData = [];
-
         lines.forEach(line => {
             line = line.trim();
-            if (!line) return; // 跳过空行
-
-            // 逻辑：以 "----" 分割
+            if (!line) return;
             const parts = line.split('----');
-
             if (parts.length > 1) {
-                const token = parts.pop(); // 最后一个是Token
-                const account = parts.join('----'); // 剩下的是账号
+                const token = parts.pop();
+                const account = parts.join('----');
                 globalLeftData.push(account);
                 globalRightData.push(token);
             } else {
-                // 异常格式处理
                 globalLeftData.push(line);
                 globalRightData.push("【⚠️ 格式错误/无Token】");
             }
         });
-
-        // 填充文本框
         document.getElementById('out1_left').value = globalLeftData.join('\n');
         document.getElementById('out1_right').value = globalRightData.join('\n');
-        
-        // 更新计数
         document.getElementById('count1a').innerText = globalLeftData.length + ' 行';
         document.getElementById('count1b').innerText = globalRightData.length + ' 行';
-
-        // 隐藏旧的核对表，强制用户重新点生成
         document.getElementById('checkArea').style.display = 'none';
-
         if (globalLeftData.length !== globalRightData.length) {
             alert("❌ 警告：左右行数不匹配！请务必检查。");
         }
     }
 
-    // --- 功能 1: 生成核对表 ---
     function showCheckTable() {
-        if (globalLeftData.length === 0) {
-            alert("请先输入数据并点击【执行分离】");
-            return;
-        }
-
+        if (globalLeftData.length === 0) { alert("请先输入数据并点击【执行分离】"); return; }
         const tbody = document.querySelector('#checkTable tbody');
-        tbody.innerHTML = ''; // 清空
-
+        tbody.innerHTML = '';
         for (let i = 0; i < globalLeftData.length; i++) {
             const tr = document.createElement('tr');
-            
-            const tdIdx = document.createElement('td');
-            tdIdx.className = 'idx-col';
-            tdIdx.textContent = i + 1;
-            
-            const tdAcc = document.createElement('td');
-            tdAcc.textContent = globalLeftData[i];
-            
-            const tdToken = document.createElement('td');
-            tdToken.textContent = globalRightData[i];
-            
-            if (globalRightData[i].includes('⚠️')) {
-                tdToken.style.color = 'red';
-                tdToken.style.fontWeight = 'bold';
-            }
-
-            tr.appendChild(tdIdx);
-            tr.appendChild(tdAcc);
-            tr.appendChild(tdToken);
+            const tdIdx = document.createElement('td'); tdIdx.className = 'idx-col'; tdIdx.textContent = i + 1;
+            const tdAcc = document.createElement('td'); tdAcc.textContent = globalLeftData[i];
+            const tdToken = document.createElement('td'); tdToken.textContent = globalRightData[i];
+            if (globalRightData[i].includes('⚠️')) { tdToken.style.color = 'red'; tdToken.style.fontWeight = 'bold'; }
+            tr.appendChild(tdIdx); tr.appendChild(tdAcc); tr.appendChild(tdToken);
             tbody.appendChild(tr);
         }
-
         document.getElementById('checkArea').style.display = 'block';
         document.getElementById('checkArea').scrollIntoView({behavior: "smooth"});
     }
 
-    // --- 功能 2: 提取卡密 (核心修改部分) ---
+    // ★ 核心修改：动态读取参数名，支持任意 URL 参数提取
     function processExtract() {
         const input = document.getElementById('input2').value;
-        if (!input.trim()) {
-            alert("请先输入包含链接的内容！");
-            return;
-        }
-        
-        // 修改点：加入了 \- 以支持带有横杠的卡密格式（如 UUID格式）
-        const regex = /card=([a-zA-Z0-9\-]+)/gi;
-        
+        if (!input.trim()) { alert("请先输入包含链接的内容！"); return; }
+
+        // 读取用户设置的参数名，默认 card
+        const paramName = (document.getElementById('paramName').value.trim() || 'card')
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // 转义特殊字符
+
+        // 匹配 参数名=值，值可包含字母/数字/横杠/下划线
+        const regex = new RegExp(paramName + '=([a-zA-Z0-9\\-_]+)', 'gi');
+
         const results = [];
         let match;
-        
-        // 循环查找所有匹配项
         while ((match = regex.exec(input)) !== null) {
-            // match[1] 是括号里捕获的内容，即等号后面的卡密
             results.push(match[1]);
         }
 
-        // 将提取结果填入输出框
         document.getElementById('out2').value = results.join('\n');
         document.getElementById('count2').innerText = results.length + ' 行';
-        
-        // 用户反馈
+
         if (results.length === 0) {
-            alert("未找到符合格式的链接 (如 ...?card=XXXX)，请检查输入内容。");
+            alert(`未找到参数 "${paramName.replace(/\\/g,'')}" 的匹配项，请确认参数名是否正确。`);
         }
     }
 
-    // --- 辅助功能 ---
     function clear1() {
         document.getElementById('input1').value = '';
         document.getElementById('out1_left').value = '';
         document.getElementById('out1_right').value = '';
         document.getElementById('checkArea').style.display = 'none';
-        globalLeftData = [];
-        globalRightData = [];
+        globalLeftData = []; globalRightData = [];
         document.getElementById('count1a').innerText = '0 行';
         document.getElementById('count1b').innerText = '0 行';
     }
@@ -433,15 +350,13 @@
         el.select();
         el.setSelectionRange(0, 99999);
         document.execCommand('copy');
-        
         const btn = document.activeElement;
-        if(btn.tagName === 'BUTTON') {
+        if (btn.tagName === 'BUTTON') {
             const oldText = btn.innerText;
             btn.innerText = '✅';
             setTimeout(() => btn.innerText = oldText, 1000);
         }
     }
 </script>
-
 </body>
 </html>
