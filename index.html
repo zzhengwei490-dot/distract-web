@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.4</title>
+    <title>批量数据分离与核对工具 V2.5</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -136,6 +136,24 @@
         }
         .param-input:focus { outline: none; border-color: var(--primary); }
         .param-hint { font-size: 12px; color: #94a3b8; }
+        .format-hint {
+            margin: 8px 0 2px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            background: #eff6ff;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.7;
+            border: 1px solid #dbeafe;
+        }
+        .split-summary {
+            min-height: 20px;
+            margin: 2px 0 10px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .status-ok { color: #059669; font-weight: 700; }
+        .status-warn { color: #dc2626; font-weight: 700; }
 
         @media (max-width: 768px) {
             .row { flex-direction: column; }
@@ -145,7 +163,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.4</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.5</h1>
 
     <!-- 功能1 -->
     <div class="card">
@@ -155,12 +173,16 @@
         </div>
         <div class="col">
             <label>输入原始数据 (每行一条):</label>
-            <textarea id="input1" style="height: 100px;" placeholder="格式示例：&#10;xguiwbrp59@outlook.com----GU5aPwtaWmJ7----lqmebxpc70120----rt_VgIcdk..."></textarea>
+            <textarea id="input1" style="height: 120px;" placeholder="支持自动识别 RT 所在位置：&#10;格式1：账号----密码----邮箱密码----2FA----rt.1.xxxxx&#10;格式2：账号----密码----rt.1.xxxxx----邮箱密码&#10;格式3：账号----密码----邮箱密码----rt.1.xxxxx"></textarea>
+            <div class="format-hint">
+                自动查找以 <b>rt.</b> 开头的字段并单独提取；其余字段会按照原来的先后顺序保留。兼容旧数据中的 <b>rt_</b> 或 <b>rt-</b> 开头格式。
+            </div>
             <div class="btn-group">
                 <button class="btn-primary" onclick="processSplit()">⚡ 1. 执行分离</button>
                 <button class="btn-check" onclick="showCheckTable()">🔍 2. 生成核对表 (必点)</button>
                 <button class="btn-clear" onclick="clear1()">清空</button>
             </div>
+            <div id="splitSummary" class="split-summary"></div>
 
             <div id="checkArea" class="check-area">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -172,8 +194,9 @@
                         <thead>
                             <tr>
                                 <th class="idx-col">行号</th>
-                                <th>账号部分 (Account)</th>
-                                <th>Token部分 (RT)</th>
+                                <th>其余字段（保持原顺序）</th>
+                                <th>RT Token</th>
+                                <th>识别状态</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -184,20 +207,20 @@
             <div class="row">
                 <div class="col">
                     <label>
-                        前半部分 (账号) <span id="count1a" class="badge">0 行</span>
+                        其余字段（保持原顺序） <span id="count1a" class="badge">0 行</span>
                         <button class="btn-copy" onclick="copyText('out1_left')">复制</button>
                     </label>
-                    <textarea id="out1_left" readonly placeholder="这里显示：邮箱----密码----辅助码" spellcheck="false"></textarea>
+                    <textarea id="out1_left" readonly placeholder="这里显示移除 RT 后的其余字段，顺序保持不变" spellcheck="false"></textarea>
                 </div>
                 <div class="col">
                     <label>
-                        后半部分 (Token) <span id="count1b" class="badge">0 行</span>
+                        RT Token <span id="count1b" class="badge">0 行</span>
                         <label class="sync-toggle">
                             <input type="checkbox" id="syncScroll" checked style="margin-right:4px;">🔒同步滚动
                         </label>
                         <button class="btn-copy" onclick="copyText('out1_right')">复制</button>
                     </label>
-                    <textarea id="out1_right" readonly placeholder="这里显示：rt_xxxxxxxx..." spellcheck="false"></textarea>
+                    <textarea id="out1_right" readonly placeholder="这里显示提取出的 rt.1.xxxxx..." spellcheck="false"></textarea>
                 </div>
             </div>
         </div>
@@ -238,6 +261,7 @@
 <script>
     let globalLeftData = [];
     let globalRightData = [];
+    let globalStatusData = [];
 
     const leftBox = document.getElementById('out1_left');
     const rightBox = document.getElementById('out1_right');
@@ -259,50 +283,110 @@
         setTimeout(() => isSyncingLeft = false, 10);
     };
 
+    function detectFormat(parts, tokenIndex) {
+        if (parts.length === 5 && tokenIndex === 4) return '格式1：RT 在末尾';
+        if (parts.length === 4 && tokenIndex === 2) return '格式2：RT 在第3段';
+        if (parts.length === 4 && tokenIndex === 3) return '格式3：RT 在末尾';
+        return `自定义格式：RT 在第 ${tokenIndex + 1} 段`;
+    }
+
     function processSplit() {
         const input = document.getElementById('input1').value;
-        const lines = input.split('\n');
+        const lines = input.replace(/\r\n?/g, '\n').split('\n');
         globalLeftData = [];
         globalRightData = [];
-        lines.forEach(line => {
-            line = line.trim();
+        globalStatusData = [];
+
+        let successCount = 0;
+        let warningCount = 0;
+
+        lines.forEach(rawLine => {
+            const line = rawLine.trim();
             if (!line) return;
-            const parts = line.split('----');
-            if (parts.length > 1) {
-                const token = parts.pop();
-                const account = parts.join('----');
-                globalLeftData.push(account);
-                globalRightData.push(token);
-            } else {
+
+            const parts = line.split('----').map(item => item.trim());
+            const tokenIndexes = [];
+
+            parts.forEach((part, index) => {
+                if (/^rt(?:\.|_|-)/i.test(part)) tokenIndexes.push(index);
+            });
+
+            if (tokenIndexes.length === 0) {
                 globalLeftData.push(line);
-                globalRightData.push("【⚠️ 格式错误/无Token】");
+                globalRightData.push('【⚠️ 未识别到 RT Token】');
+                globalStatusData.push('未找到以 rt. / rt_ / rt- 开头的字段');
+                warningCount++;
+                return;
+            }
+
+            const tokenIndex = tokenIndexes[0];
+            const token = parts[tokenIndex];
+            const remaining = parts.filter((_, index) => index !== tokenIndex).join('----');
+
+            globalLeftData.push(remaining);
+            globalRightData.push(token);
+
+            if (tokenIndexes.length > 1) {
+                globalStatusData.push(`检测到 ${tokenIndexes.length} 个 RT，已提取第一个`);
+                warningCount++;
+            } else {
+                globalStatusData.push(detectFormat(parts, tokenIndex));
+                successCount++;
             }
         });
+
         document.getElementById('out1_left').value = globalLeftData.join('\n');
         document.getElementById('out1_right').value = globalRightData.join('\n');
         document.getElementById('count1a').innerText = globalLeftData.length + ' 行';
         document.getElementById('count1b').innerText = globalRightData.length + ' 行';
         document.getElementById('checkArea').style.display = 'none';
-        if (globalLeftData.length !== globalRightData.length) {
-            alert("❌ 警告：左右行数不匹配！请务必检查。");
+
+        const summary = document.getElementById('splitSummary');
+        if (globalLeftData.length === 0) {
+            summary.innerHTML = '<span class="status-warn">请先输入需要处理的数据。</span>';
+            return;
         }
+
+        summary.innerHTML = `共处理 <b>${globalLeftData.length}</b> 行，` +
+            `<span class="status-ok">正常 ${successCount} 行</span>` +
+            (warningCount ? `，<span class="status-warn">需检查 ${warningCount} 行</span>` : '，无异常');
     }
 
     function showCheckTable() {
-        if (globalLeftData.length === 0) { alert("请先输入数据并点击【执行分离】"); return; }
+        if (globalLeftData.length === 0) { alert('请先输入数据并点击【执行分离】'); return; }
         const tbody = document.querySelector('#checkTable tbody');
         tbody.innerHTML = '';
+
         for (let i = 0; i < globalLeftData.length; i++) {
             const tr = document.createElement('tr');
-            const tdIdx = document.createElement('td'); tdIdx.className = 'idx-col'; tdIdx.textContent = i + 1;
-            const tdAcc = document.createElement('td'); tdAcc.textContent = globalLeftData[i];
-            const tdToken = document.createElement('td'); tdToken.textContent = globalRightData[i];
-            if (globalRightData[i].includes('⚠️')) { tdToken.style.color = 'red'; tdToken.style.fontWeight = 'bold'; }
-            tr.appendChild(tdIdx); tr.appendChild(tdAcc); tr.appendChild(tdToken);
+            const tdIdx = document.createElement('td');
+            const tdAcc = document.createElement('td');
+            const tdToken = document.createElement('td');
+            const tdStatus = document.createElement('td');
+
+            tdIdx.className = 'idx-col';
+            tdIdx.textContent = i + 1;
+            tdAcc.textContent = globalLeftData[i];
+            tdToken.textContent = globalRightData[i];
+            tdStatus.textContent = globalStatusData[i] || '';
+
+            const hasWarning = globalRightData[i].includes('⚠️') ||
+                (globalStatusData[i] && globalStatusData[i].includes('检测到'));
+
+            tdStatus.className = hasWarning ? 'status-warn' : 'status-ok';
+            if (globalRightData[i].includes('⚠️')) {
+                tdToken.className = 'status-warn';
+            }
+
+            tr.appendChild(tdIdx);
+            tr.appendChild(tdAcc);
+            tr.appendChild(tdToken);
+            tr.appendChild(tdStatus);
             tbody.appendChild(tr);
         }
+
         document.getElementById('checkArea').style.display = 'block';
-        document.getElementById('checkArea').scrollIntoView({behavior: "smooth"});
+        document.getElementById('checkArea').scrollIntoView({behavior: 'smooth'});
     }
 
     // ★ 核心修改：动态读取参数名，支持任意 URL 参数提取
@@ -336,9 +420,10 @@
         document.getElementById('out1_left').value = '';
         document.getElementById('out1_right').value = '';
         document.getElementById('checkArea').style.display = 'none';
-        globalLeftData = []; globalRightData = [];
+        globalLeftData = []; globalRightData = []; globalStatusData = [];
         document.getElementById('count1a').innerText = '0 行';
         document.getElementById('count1b').innerText = '0 行';
+        document.getElementById('splitSummary').innerHTML = '';
     }
     function clear2() {
         document.getElementById('input2').value = '';
