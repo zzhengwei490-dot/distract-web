@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.5</title>
+    <title>批量数据分离与核对工具 V2.6</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -163,7 +163,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.5</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.6</h1>
 
     <!-- 功能1 -->
     <div class="card">
@@ -254,6 +254,37 @@
                 <button class="btn-copy" onclick="copyText('out2')">复制结果</button>
             </label>
             <textarea id="out2" readonly style="height: 150px;" placeholder="这里将显示提取出的卡密..."></textarea>
+        </div>
+    </div>
+
+    <!-- 功能3 -->
+    <div class="card">
+        <div class="card-header">
+            <span>功能 3: 银行卡格式转换</span>
+            <span class="badge">固定金额 81.3</span>
+        </div>
+        <div class="col">
+            <label>输入银行卡数据（每行一条）：</label>
+            <textarea id="input3" style="height: 140px;" placeholder="示例：&#10;卡号:5378727128507770;CVV373;有效期:08/2028&#10;卡号:5378727128507771;CVV:456;有效期:0130&#10;卡号:5378727128507772;CVV789;有效期:04|2032"></textarea>
+
+            <div class="format-hint">
+                输出格式：<b>卡号---MMYY---CVV---81.3</b><br>
+                有效期兼容：<b>0130、012030、04/2032、04/28、04|2032、04|28、04\2032、04\28</b>。
+                输入中的中文冒号、英文冒号和空格均可自动兼容。
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-primary" onclick="processCardFormat()">⚡ 一键转换</button>
+                <button class="btn-clear" onclick="clear3()">清空</button>
+            </div>
+
+            <div id="cardSummary" class="split-summary"></div>
+
+            <label>
+                转换结果 <span id="count3" class="badge">0 行</span>
+                <button class="btn-copy" onclick="copyText('out3')">复制结果</button>
+            </label>
+            <textarea id="out3" readonly style="height: 170px;" placeholder="5378727128507770---0828---373---81.3"></textarea>
         </div>
     </div>
 </div>
@@ -415,6 +446,86 @@
         }
     }
 
+    // 将多种有效期写法统一转换为 MMYY
+    function normalizeExpiry(rawExpiry) {
+        const digits = String(rawExpiry || '').replace(/\D/g, '');
+        let month = '';
+        let year = '';
+
+        if (digits.length === 4) {
+            month = digits.slice(0, 2);
+            year = digits.slice(2, 4);
+        } else if (digits.length === 6) {
+            month = digits.slice(0, 2);
+            year = digits.slice(4, 6);
+        } else {
+            return null;
+        }
+
+        const monthNumber = Number(month);
+        if (monthNumber < 1 || monthNumber > 12) return null;
+        return month + year;
+    }
+
+    function parseCardLine(line) {
+        // 优先按字段名称识别，字段顺序可以自由调整
+        let cardMatch = line.match(/(?:卡号|card(?:\s*number)?|pan)\s*[:：]?\s*(\d{12,19})/i);
+        let cvvMatch = line.match(/(?:cvv2?|cvc2?|安全码)\s*[:：]?\s*(\d{3,4})/i);
+        let expiryMatch = line.match(/(?:有效期|有效日期|expiry|exp(?:iration)?(?:\s*date)?)\s*[:：]?\s*(\d{2}\s*(?:[\/|\\]\s*)?\d{2,4})/i);
+
+        // 卡号字段缺少标签时，尝试从整行中查找 12-19 位数字
+        if (!cardMatch) {
+            cardMatch = line.match(/(?:^|\D)(\d{12,19})(?!\d)/);
+        }
+
+        if (!cardMatch || !cvvMatch || !expiryMatch) {
+            return null;
+        }
+
+        const cardNumber = cardMatch[1];
+        const cvv = cvvMatch[1];
+        const expiry = normalizeExpiry(expiryMatch[1]);
+        if (!expiry) return null;
+
+        return `${cardNumber}---${expiry}---${cvv}---81.3`;
+    }
+
+    function processCardFormat() {
+        const input = document.getElementById('input3').value;
+        const lines = input.replace(/\r\n?/g, '\n').split('\n');
+        const results = [];
+        const failedRows = [];
+        let nonEmptyCount = 0;
+
+        lines.forEach((rawLine, index) => {
+            const line = rawLine.trim();
+            if (!line) return;
+            nonEmptyCount++;
+
+            const result = parseCardLine(line);
+            if (result) {
+                results.push(result);
+            } else {
+                failedRows.push(index + 1);
+            }
+        });
+
+        document.getElementById('out3').value = results.join('\n');
+        document.getElementById('count3').innerText = results.length + ' 行';
+
+        const summary = document.getElementById('cardSummary');
+        if (nonEmptyCount === 0) {
+            summary.innerHTML = '<span class="status-warn">请先输入需要转换的银行卡数据。</span>';
+            return;
+        }
+
+        summary.innerHTML = `共读取 <b>${nonEmptyCount}</b> 行，` +
+            `<span class="status-ok">成功转换 ${results.length} 行</span>` +
+            (failedRows.length
+                ? `，<span class="status-warn">第 ${failedRows.join('、')} 行识别失败</span>`
+                : '，无异常');
+    }
+
     function clear1() {
         document.getElementById('input1').value = '';
         document.getElementById('out1_left').value = '';
@@ -429,6 +540,12 @@
         document.getElementById('input2').value = '';
         document.getElementById('out2').value = '';
         document.getElementById('count2').innerText = '0 行';
+    }
+    function clear3() {
+        document.getElementById('input3').value = '';
+        document.getElementById('out3').value = '';
+        document.getElementById('count3').innerText = '0 行';
+        document.getElementById('cardSummary').innerHTML = '';
     }
     function copyText(id) {
         const el = document.getElementById(id);
