@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.6</title>
+    <title>批量数据分离与核对工具 V2.7</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -163,19 +163,21 @@
 </head>
 <body>
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.6</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.7</h1>
 
     <!-- 功能1 -->
     <div class="card">
         <div class="card-header">
-            <span>功能 1: 账号与Token分离</span>
+            <span>功能 1: 账号与 Session Token 分离</span>
             <span class="badge">分离模式</span>
         </div>
         <div class="col">
             <label>输入原始数据 (每行一条):</label>
-            <textarea id="input1" style="height: 120px;" placeholder="支持自动识别 RT 所在位置：&#10;格式1：账号----密码----邮箱密码----2FA----rt.1.xxxxx&#10;格式2：账号----密码----rt.1.xxxxx----邮箱密码&#10;格式3：账号----密码----邮箱密码----rt.1.xxxxx"></textarea>
+            <textarea id="input1" style="height: 120px;" placeholder="固定输入格式（每行一条）：&#10;账号----密码----rt.1.xxxxx----邮箱密码----session token&#10;&#10;处理后：&#10;左侧：账号----密码----邮箱密码&#10;右侧：session token&#10;RT 字段会直接丢弃，不输出。"></textarea>
             <div class="format-hint">
-                自动查找以 <b>rt.</b> 开头的字段并单独提取；其余字段会按照原来的先后顺序保留。兼容旧数据中的 <b>rt_</b> 或 <b>rt-</b> 开头格式。
+                固定按 <b>账号----密码----RT----邮箱密码----Session Token</b> 识别。<br>
+                执行后左侧仅保留 <b>账号----密码----邮箱密码</b>，右侧单独输出第 5 段 <b>Session Token</b>；第 3 段 RT 会被直接移除。
+                如果 Session Token 内容本身包含 <b>----</b>，也会自动合并回第 5 段，避免被截断。
             </div>
             <div class="btn-group">
                 <button class="btn-primary" onclick="processSplit()">⚡ 1. 执行分离</button>
@@ -194,8 +196,8 @@
                         <thead>
                             <tr>
                                 <th class="idx-col">行号</th>
-                                <th>其余字段（保持原顺序）</th>
-                                <th>RT Token</th>
+                                <th>账号----密码----邮箱密码</th>
+                                <th>Session Token</th>
                                 <th>识别状态</th>
                             </tr>
                         </thead>
@@ -207,20 +209,20 @@
             <div class="row">
                 <div class="col">
                     <label>
-                        其余字段（保持原顺序） <span id="count1a" class="badge">0 行</span>
+                        账号----密码----邮箱密码 <span id="count1a" class="badge">0 行</span>
                         <button class="btn-copy" onclick="copyText('out1_left')">复制</button>
                     </label>
-                    <textarea id="out1_left" readonly placeholder="这里显示移除 RT 后的其余字段，顺序保持不变" spellcheck="false"></textarea>
+                    <textarea id="out1_left" readonly placeholder="这里显示：账号----密码----邮箱密码" spellcheck="false"></textarea>
                 </div>
                 <div class="col">
                     <label>
-                        RT Token <span id="count1b" class="badge">0 行</span>
+                        Session Token <span id="count1b" class="badge">0 行</span>
                         <label class="sync-toggle">
                             <input type="checkbox" id="syncScroll" checked style="margin-right:4px;">🔒同步滚动
                         </label>
                         <button class="btn-copy" onclick="copyText('out1_right')">复制</button>
                     </label>
-                    <textarea id="out1_right" readonly placeholder="这里显示提取出的 rt.1.xxxxx..." spellcheck="false"></textarea>
+                    <textarea id="out1_right" readonly placeholder="这里显示第 5 段 Session Token（原样保留）" spellcheck="false"></textarea>
                 </div>
             </div>
         </div>
@@ -314,16 +316,10 @@
         setTimeout(() => isSyncingLeft = false, 10);
     };
 
-    function detectFormat(parts, tokenIndex) {
-        if (parts.length === 5 && tokenIndex === 4) return '格式1：RT 在末尾';
-        if (parts.length === 4 && tokenIndex === 2) return '格式2：RT 在第3段';
-        if (parts.length === 4 && tokenIndex === 3) return '格式3：RT 在末尾';
-        return `自定义格式：RT 在第 ${tokenIndex + 1} 段`;
-    }
-
     function processSplit() {
         const input = document.getElementById('input1').value;
         const lines = input.replace(/\r\n?/g, '\n').split('\n');
+
         globalLeftData = [];
         globalRightData = [];
         globalStatusData = [];
@@ -335,35 +331,49 @@
             const line = rawLine.trim();
             if (!line) return;
 
-            const parts = line.split('----').map(item => item.trim());
-            const tokenIndexes = [];
+            // 固定格式：
+            // 账号----密码----RT----邮箱密码----Session Token
+            //
+            // 只切前 4 个分隔位置；如果 Session Token 本身含有 ----，
+            // 后面的内容会重新拼回 Session Token，避免数据被截断。
+            const parts = line.split('----');
 
-            parts.forEach((part, index) => {
-                if (/^rt(?:\.|_|-)/i.test(part)) tokenIndexes.push(index);
-            });
-
-            if (tokenIndexes.length === 0) {
+            if (parts.length < 5) {
                 globalLeftData.push(line);
-                globalRightData.push('【⚠️ 未识别到 RT Token】');
-                globalStatusData.push('未找到以 rt. / rt_ / rt- 开头的字段');
+                globalRightData.push('【⚠️ 格式错误：字段不足 5 段】');
+                globalStatusData.push('应为：账号----密码----RT----邮箱密码----Session Token');
                 warningCount++;
                 return;
             }
 
-            const tokenIndex = tokenIndexes[0];
-            const token = parts[tokenIndex];
-            const remaining = parts.filter((_, index) => index !== tokenIndex).join('----');
+            const account = (parts[0] || '').trim();
+            const password = (parts[1] || '').trim();
+            const rt = (parts[2] || '').trim();
+            const emailPassword = (parts[3] || '').trim();
+            const sessionToken = parts.slice(4).join('----').trim();
 
-            globalLeftData.push(remaining);
-            globalRightData.push(token);
+            const leftResult = `${account}----${password}----${emailPassword}`;
 
-            if (tokenIndexes.length > 1) {
-                globalStatusData.push(`检测到 ${tokenIndexes.length} 个 RT，已提取第一个`);
+            if (!account || !password || !emailPassword || !sessionToken) {
+                globalLeftData.push(leftResult);
+                globalRightData.push(sessionToken || '【⚠️ Session Token 为空】');
+                globalStatusData.push('存在空字段，请人工核对');
                 warningCount++;
-            } else {
-                globalStatusData.push(detectFormat(parts, tokenIndex));
-                successCount++;
+                return;
             }
+
+            if (!/^rt(?:\.|_|-)/i.test(rt)) {
+                globalLeftData.push(leftResult);
+                globalRightData.push(sessionToken);
+                globalStatusData.push('第 3 段不像 RT，但已按固定格式移除');
+                warningCount++;
+                return;
+            }
+
+            globalLeftData.push(leftResult);
+            globalRightData.push(sessionToken);
+            globalStatusData.push('格式正确：RT 已移除，Session Token 已分离');
+            successCount++;
         });
 
         document.getElementById('out1_left').value = globalLeftData.join('\n');
@@ -402,7 +412,11 @@
             tdStatus.textContent = globalStatusData[i] || '';
 
             const hasWarning = globalRightData[i].includes('⚠️') ||
-                (globalStatusData[i] && globalStatusData[i].includes('检测到'));
+                (globalStatusData[i] && (
+                    globalStatusData[i].includes('请人工核对') ||
+                    globalStatusData[i].includes('不像 RT') ||
+                    globalStatusData[i].includes('应为：')
+                ));
 
             tdStatus.className = hasWarning ? 'status-warn' : 'status-ok';
             if (globalRightData[i].includes('⚠️')) {
