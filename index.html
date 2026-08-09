@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.8</title>
+    <title>批量数据分离与核对工具 V2.9</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -163,7 +163,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.8</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.9</h1>
 
     <!-- 功能1 -->
     <div class="card">
@@ -216,7 +216,7 @@
                 </div>
                 <div class="col">
                     <label>
-                        Session Token <span id="count1b" class="badge">0 行</span> <span style="font-size:12px;color:#64748b;font-weight:400;">（复制按钮会复制全部内容）</span>
+                        Session Token <span id="count1b" class="badge">0 行</span> <span style="font-size:12px;color:#64748b;font-weight:400;">（复制按钮会复制全部行）</span>
                         <label class="sync-toggle">
                             <input type="checkbox" id="syncScroll" checked style="margin-right:4px;">🔒同步滚动
                         </label>
@@ -430,40 +430,6 @@
         }
     }
 
-        const monthNumber = Number(month);
-        if (monthNumber < 1 || monthNumber > 12) return null;
-        return month + year;
-    }
-
-        if (!cardMatch || !cvvMatch || !expiryMatch) {
-            return null;
-        }
-
-        const cardNumber = cardMatch[1];
-        const cvv = cvvMatch[1];
-        const expiry = normalizeExpiry(expiryMatch[1]);
-        if (!expiry) return null;
-
-        return `${cardNumber}---${expiry}---${cvv}---81.3`;
-    }
-        });
-
-        document.getElementById('out3').value = results.join('\n');
-        document.getElementById('count3').innerText = results.length + ' 行';
-
-        const summary = document.getElementById('cardSummary');
-        if (nonEmptyCount === 0) {
-            summary.innerHTML = '<span class="status-warn">请先输入需要转换的银行卡数据。</span>';
-            return;
-        }
-
-        summary.innerHTML = `共读取 <b>${nonEmptyCount}</b> 行，` +
-            `<span class="status-ok">成功转换 ${results.length} 行</span>` +
-            (failedRows.length
-                ? `，<span class="status-warn">第 ${failedRows.join('、')} 行识别失败</span>`
-                : '，无异常');
-    }
-
     function clear1() {
         document.getElementById('input1').value = '';
         document.getElementById('out1_left').value = '';
@@ -481,51 +447,46 @@
     }
     async function copyText(id) {
         const el = document.getElementById(id);
-        const text = el.value || '';
-        if (!text) {
+        const fullText = el ? el.value : '';
+
+        if (!fullText) {
             alert('当前没有可复制的内容');
             return;
         }
 
         let copied = false;
 
-        // 优先使用现代 Clipboard API，可一次复制完整的 50 行甚至更多超长 Session Token
+        // HTTPS / localhost 环境优先使用 Clipboard API
         try {
             if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
+                await navigator.clipboard.writeText(fullText);
                 copied = true;
             }
-        } catch (e) {}
+        } catch (e) {
+            copied = false;
+        }
 
-        // 本地 HTML / file:// 环境兼容回退
+        // file:// 本地打开时使用兼容方案，直接全选整个 textarea
         if (!copied) {
-            const start = el.selectionStart;
-            const end = el.selectionEnd;
-
-            el.focus();
-            el.select();
-
             try {
+                el.focus();
+                el.select();
                 copied = document.execCommand('copy');
+                window.getSelection && window.getSelection().removeAllRanges();
             } catch (e) {
                 copied = false;
             }
-
-            // 恢复原来的选区/光标
-            try {
-                el.setSelectionRange(start || 0, end || 0);
-            } catch (e) {}
         }
 
-        const btn = document.activeElement;
         if (copied) {
-            if (btn && btn.tagName === 'BUTTON') {
+            const buttons = document.querySelectorAll(`button[onclick="copyText('${id}')"]`);
+            buttons.forEach(btn => {
                 const oldText = btn.innerText;
                 btn.innerText = '✅ 已完整复制';
                 setTimeout(() => btn.innerText = oldText, 1200);
-            }
+            });
         } else {
-            alert('自动复制失败，请点击文本框后使用 Ctrl+A、Ctrl+C 复制。');
+            alert('自动复制失败，请点击文本框后按 Ctrl+A，再按 Ctrl+C。');
         }
     }
 </script>
