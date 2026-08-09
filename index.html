@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.7</title>
+    <title>批量数据分离与核对工具 V2.8</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -163,7 +163,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.7</h1>
+    <h1>🛠️ 数据分离与提取助手 V2.8</h1>
 
     <!-- 功能1 -->
     <div class="card">
@@ -212,17 +212,17 @@
                         账号----密码----邮箱密码 <span id="count1a" class="badge">0 行</span>
                         <button class="btn-copy" onclick="copyText('out1_left')">复制</button>
                     </label>
-                    <textarea id="out1_left" readonly placeholder="这里显示：账号----密码----邮箱密码" spellcheck="false"></textarea>
+                    <textarea id="out1_left" readonly style="height: 360px;" placeholder="这里显示：账号----密码----邮箱密码" spellcheck="false"></textarea>
                 </div>
                 <div class="col">
                     <label>
-                        Session Token <span id="count1b" class="badge">0 行</span>
+                        Session Token <span id="count1b" class="badge">0 行</span> <span style="font-size:12px;color:#64748b;font-weight:400;">（复制按钮会复制全部内容）</span>
                         <label class="sync-toggle">
                             <input type="checkbox" id="syncScroll" checked style="margin-right:4px;">🔒同步滚动
                         </label>
                         <button class="btn-copy" onclick="copyText('out1_right')">复制</button>
                     </label>
-                    <textarea id="out1_right" readonly placeholder="这里显示第 5 段 Session Token（原样保留）" spellcheck="false"></textarea>
+                    <textarea id="out1_right" readonly style="height: 360px;" placeholder="这里显示第 5 段 Session Token（原样保留）" spellcheck="false"></textarea>
                 </div>
             </div>
         </div>
@@ -259,36 +259,6 @@
         </div>
     </div>
 
-    <!-- 功能3 -->
-    <div class="card">
-        <div class="card-header">
-            <span>功能 3: 银行卡格式转换</span>
-            <span class="badge">固定金额 81.3</span>
-        </div>
-        <div class="col">
-            <label>输入银行卡数据（每行一条）：</label>
-            <textarea id="input3" style="height: 140px;" placeholder="示例：&#10;卡号:5378727128507770;CVV373;有效期:08/2028&#10;卡号:5378727128507771;CVV:456;有效期:0130&#10;卡号:5378727128507772;CVV789;有效期:04|2032"></textarea>
-
-            <div class="format-hint">
-                输出格式：<b>卡号---MMYY---CVV---81.3</b><br>
-                有效期兼容：<b>0130、012030、04/2032、04/28、04|2032、04|28、04\2032、04\28</b>。
-                输入中的中文冒号、英文冒号和空格均可自动兼容。
-            </div>
-
-            <div class="btn-group">
-                <button class="btn-primary" onclick="processCardFormat()">⚡ 一键转换</button>
-                <button class="btn-clear" onclick="clear3()">清空</button>
-            </div>
-
-            <div id="cardSummary" class="split-summary"></div>
-
-            <label>
-                转换结果 <span id="count3" class="badge">0 行</span>
-                <button class="btn-copy" onclick="copyText('out3')">复制结果</button>
-            </label>
-            <textarea id="out3" readonly style="height: 170px;" placeholder="5378727128507770---0828---373---81.3"></textarea>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -460,37 +430,10 @@
         }
     }
 
-    // 将多种有效期写法统一转换为 MMYY
-    function normalizeExpiry(rawExpiry) {
-        const digits = String(rawExpiry || '').replace(/\D/g, '');
-        let month = '';
-        let year = '';
-
-        if (digits.length === 4) {
-            month = digits.slice(0, 2);
-            year = digits.slice(2, 4);
-        } else if (digits.length === 6) {
-            month = digits.slice(0, 2);
-            year = digits.slice(4, 6);
-        } else {
-            return null;
-        }
-
         const monthNumber = Number(month);
         if (monthNumber < 1 || monthNumber > 12) return null;
         return month + year;
     }
-
-    function parseCardLine(line) {
-        // 优先按字段名称识别，字段顺序可以自由调整
-        let cardMatch = line.match(/(?:卡号|card(?:\s*number)?|pan)\s*[:：]?\s*(\d{12,19})/i);
-        let cvvMatch = line.match(/(?:cvv2?|cvc2?|安全码)\s*[:：]?\s*(\d{3,4})/i);
-        let expiryMatch = line.match(/(?:有效期|有效日期|expiry|exp(?:iration)?(?:\s*date)?)\s*[:：]?\s*(\d{2}\s*(?:[\/|\\]\s*)?\d{2,4})/i);
-
-        // 卡号字段缺少标签时，尝试从整行中查找 12-19 位数字
-        if (!cardMatch) {
-            cardMatch = line.match(/(?:^|\D)(\d{12,19})(?!\d)/);
-        }
 
         if (!cardMatch || !cvvMatch || !expiryMatch) {
             return null;
@@ -503,25 +446,6 @@
 
         return `${cardNumber}---${expiry}---${cvv}---81.3`;
     }
-
-    function processCardFormat() {
-        const input = document.getElementById('input3').value;
-        const lines = input.replace(/\r\n?/g, '\n').split('\n');
-        const results = [];
-        const failedRows = [];
-        let nonEmptyCount = 0;
-
-        lines.forEach((rawLine, index) => {
-            const line = rawLine.trim();
-            if (!line) return;
-            nonEmptyCount++;
-
-            const result = parseCardLine(line);
-            if (result) {
-                results.push(result);
-            } else {
-                failedRows.push(index + 1);
-            }
         });
 
         document.getElementById('out3').value = results.join('\n');
@@ -555,22 +479,53 @@
         document.getElementById('out2').value = '';
         document.getElementById('count2').innerText = '0 行';
     }
-    function clear3() {
-        document.getElementById('input3').value = '';
-        document.getElementById('out3').value = '';
-        document.getElementById('count3').innerText = '0 行';
-        document.getElementById('cardSummary').innerHTML = '';
-    }
-    function copyText(id) {
+    async function copyText(id) {
         const el = document.getElementById(id);
-        el.select();
-        el.setSelectionRange(0, 99999);
-        document.execCommand('copy');
+        const text = el.value || '';
+        if (!text) {
+            alert('当前没有可复制的内容');
+            return;
+        }
+
+        let copied = false;
+
+        // 优先使用现代 Clipboard API，可一次复制完整的 50 行甚至更多超长 Session Token
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                copied = true;
+            }
+        } catch (e) {}
+
+        // 本地 HTML / file:// 环境兼容回退
+        if (!copied) {
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+
+            el.focus();
+            el.select();
+
+            try {
+                copied = document.execCommand('copy');
+            } catch (e) {
+                copied = false;
+            }
+
+            // 恢复原来的选区/光标
+            try {
+                el.setSelectionRange(start || 0, end || 0);
+            } catch (e) {}
+        }
+
         const btn = document.activeElement;
-        if (btn.tagName === 'BUTTON') {
-            const oldText = btn.innerText;
-            btn.innerText = '✅';
-            setTimeout(() => btn.innerText = oldText, 1000);
+        if (copied) {
+            if (btn && btn.tagName === 'BUTTON') {
+                const oldText = btn.innerText;
+                btn.innerText = '✅ 已完整复制';
+                setTimeout(() => btn.innerText = oldText, 1200);
+            }
+        } else {
+            alert('自动复制失败，请点击文本框后使用 Ctrl+A、Ctrl+C 复制。');
         }
     }
 </script>
