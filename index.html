@@ -231,34 +231,31 @@
     <!-- 功能2 -->
     <div class="card">
         <div class="card-header">
-            <span>功能 2: 批量提取卡密</span>
-            <span class="badge">链接参数提取</span>
+            <span>功能 2: 银行卡格式批量转换</span>
+            <span class="badge">自动识别空格 / Tab</span>
         </div>
         <div class="col">
+            <label>输入卡片数据（每行一条，字段之间空格数量可不一致）:</label>
+            <textarea id="input2" style="height: 150px;" placeholder="支持示例：&#10;4361208114916582    04/30    430&#10;4361208114004975        12/29        258&#10;&#10;也支持 Tab、多个空格混合输入。"></textarea>
 
-            <!-- ★ 新增：参数名设置行 -->
-            <div class="param-row">
-                <label>提取参数名：</label>
-                <input type="text" id="paramName" class="param-input" value="card" placeholder="如 card、key、code...">
-                <span class="param-hint">💡 填写链接中 <code>=</code> 前面的参数名，默认 <b>card</b></span>
+            <div class="format-hint">
+                自动识别 <b>16 位卡号 + 有效期 + 3 位 CVV</b>。字段之间可以是 1 个或多个空格、Tab。<br>
+                有效期统一输出为 <b>MM/YY</b>，最终格式固定为：
+                <b>{card_number}---{expires}---{cvc}---4</b>
             </div>
 
-            <label>输入包含链接的文本 (支持批量、混合文本):</label>
-            <textarea id="input2" style="height: 120px;" placeholder="支持多种格式，例如：&#10;https://freespaces.shareaiworks.com/?card=D70E585E-ED37-4F0C-BF33-B463B4DAF09E&#10;https://www.987ai.vip/recharge?card=X2L4TMFCMGHF7TVM&#10;https://example.com/pay?key=ABC123XYZ&#10;..."></textarea>
-
             <div class="btn-group">
-                <button class="btn-primary" onclick="processExtract()">⚡ 一键提取卡密</button>
+                <button class="btn-primary" onclick="processCardConvert()">⚡ 一键转换格式</button>
                 <button class="btn-clear" onclick="clear2()">清空</button>
             </div>
 
             <label>
-                提取结果 (纯净卡密) <span id="count2" class="badge">0 行</span>
+                转换结果 <span id="count2" class="badge">0 行</span>
                 <button class="btn-copy" onclick="copyText('out2')">复制结果</button>
             </label>
-            <textarea id="out2" readonly style="height: 150px;" placeholder="这里将显示提取出的卡密..."></textarea>
+            <textarea id="out2" readonly style="height: 180px;" placeholder="这里将显示转换后的卡片格式..."></textarea>
         </div>
     </div>
-
 </div>
 
 <script>
@@ -404,31 +401,65 @@
         document.getElementById('checkArea').scrollIntoView({behavior: 'smooth'});
     }
 
-    // ★ 核心修改：动态读取参数名，支持任意 URL 参数提取
-    function processExtract() {
+    // 功能2：银行卡格式批量转换
+    function processCardConvert() {
         const input = document.getElementById('input2').value;
-        if (!input.trim()) { alert("请先输入包含链接的内容！"); return; }
-
-        // 读取用户设置的参数名，默认 card
-        const paramName = (document.getElementById('paramName').value.trim() || 'card')
-            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // 转义特殊字符
-
-        // 匹配 参数名=值，值可包含字母/数字/横杠/下划线
-        const regex = new RegExp(paramName + '=([a-zA-Z0-9\\-_]+)', 'gi');
-
-        const results = [];
-        let match;
-        while ((match = regex.exec(input)) !== null) {
-            results.push(match[1]);
+        if (!input.trim()) {
+            alert('请先输入需要转换的卡片数据！');
+            return;
         }
+
+        const lines = input.replace(/\r\n?/g, '\n').split('\n');
+        const results = [];
+        const invalidLines = [];
+
+        lines.forEach((rawLine, index) => {
+            const line = rawLine.trim();
+            if (!line) return;
+
+            // 字段之间支持任意数量的空格或 Tab。
+            // 有效期支持 MM/YY、MM/YYYY，也兼容 - | \ 以及纯数字写法。
+            const match = line.match(
+                /^(\d{16})\s+((?:0[1-9]|1[0-2])(?:[\/|\\-]?\d{2}|[\/|\\-]?\d{4}))\s+(\d{3})$/
+            );
+
+            if (!match) {
+                invalidLines.push(index + 1);
+                return;
+            }
+
+            const cardNumber = match[1];
+            const expiresRaw = match[2].replace(/[\/|\\-]/g, '');
+            const cvc = match[3];
+
+            let month = '';
+            let year = '';
+
+            if (expiresRaw.length === 4) {
+                month = expiresRaw.slice(0, 2);
+                year = expiresRaw.slice(2, 4);
+            } else if (expiresRaw.length === 6) {
+                month = expiresRaw.slice(0, 2);
+                year = expiresRaw.slice(-2);
+            } else {
+                invalidLines.push(index + 1);
+                return;
+            }
+
+            const expires = `${month}/${year}`;
+            results.push(`${cardNumber}---${expires}---${cvc}---4`);
+        });
 
         document.getElementById('out2').value = results.join('\n');
         document.getElementById('count2').innerText = results.length + ' 行';
 
         if (results.length === 0) {
-            alert(`未找到参数 "${paramName.replace(/\\/g,'')}" 的匹配项，请确认参数名是否正确。`);
+            alert('没有识别到有效数据。请确认格式为：16位卡号 + 有效期 + 3位CVV。');
+        } else if (invalidLines.length > 0) {
+            alert(`转换完成：成功 ${results.length} 行；未识别 ${invalidLines.length} 行（第 ${invalidLines.join('、')} 行）。`);
         }
     }
+
 
     function clear1() {
         document.getElementById('input1').value = '';
