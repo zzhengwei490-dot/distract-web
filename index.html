@@ -168,15 +168,15 @@
     <!-- 功能1 -->
     <div class="card">
         <div class="card-header">
-            <span>功能 1: 账号与 Session Token 分离</span>
+            <span>功能 1: 账号、RT 与 Session Token 分离</span>
             <span class="badge">分离模式</span>
         </div>
         <div class="col">
             <label>输入原始数据 (每行一条):</label>
-            <textarea id="input1" style="height: 120px;" placeholder="固定输入格式（每行一条）：&#10;账号----密码----rt.1.xxxxx----邮箱密码----session token&#10;&#10;处理后：&#10;左侧：账号----密码----邮箱密码&#10;右侧：session token&#10;RT 字段会直接丢弃，不输出。"></textarea>
+            <textarea id="input1" style="height: 120px;" placeholder="固定输入格式（每行一条）：&#10;账号----密码----rt.1.xxxxx----邮箱密码----session token&#10;&#10;处理后分成 3 部分：&#10;1. 账号----密码----邮箱密码&#10;2. RT&#10;3. Session Token"></textarea>
             <div class="format-hint">
                 固定按 <b>账号----密码----RT----邮箱密码----Session Token</b> 识别。<br>
-                执行后左侧仅保留 <b>账号----密码----邮箱密码</b>，右侧单独输出第 5 段 <b>Session Token</b>；第 3 段 RT 会被直接移除。
+                执行后分别输出 3 部分：<b>账号----密码----邮箱密码</b>、第 3 段 <b>RT</b>、第 5 段 <b>Session Token</b>。<br>
                 如果 Session Token 内容本身包含 <b>----</b>，也会自动合并回第 5 段，避免被截断。
             </div>
             <div class="btn-group">
@@ -197,6 +197,7 @@
                             <tr>
                                 <th class="idx-col">行号</th>
                                 <th>账号----密码----邮箱密码</th>
+                                <th>RT</th>
                                 <th>Session Token</th>
                                 <th>识别状态</th>
                             </tr>
@@ -216,13 +217,20 @@
                 </div>
                 <div class="col">
                     <label>
-                        Session Token <span id="count1b" class="badge">0 行</span> <span style="font-size:12px;color:#64748b;font-weight:400;">（复制按钮会复制全部行）</span>
+                        RT <span id="count1b" class="badge">0 行</span>
+                        <button class="btn-copy" onclick="copyText('out1_rt')">复制</button>
+                    </label>
+                    <textarea id="out1_rt" readonly style="height: 360px;" placeholder="这里显示第 3 段 RT（原样保留）" spellcheck="false"></textarea>
+                </div>
+                <div class="col">
+                    <label>
+                        Session Token <span id="count1c" class="badge">0 行</span> <span style="font-size:12px;color:#64748b;font-weight:400;">（复制按钮会复制全部行）</span>
                         <label class="sync-toggle">
                             <input type="checkbox" id="syncScroll" checked style="margin-right:4px;">🔒同步滚动
                         </label>
-                        <button class="btn-copy" onclick="copyText('out1_right')">复制</button>
+                        <button class="btn-copy" onclick="copyText('out1_session')">复制</button>
                     </label>
-                    <textarea id="out1_right" readonly style="height: 360px;" placeholder="这里显示第 5 段 Session Token（原样保留）" spellcheck="false"></textarea>
+                    <textarea id="out1_session" readonly style="height: 360px;" placeholder="这里显示第 5 段 Session Token（原样保留）" spellcheck="false"></textarea>
                 </div>
             </div>
         </div>
@@ -260,35 +268,39 @@
 
 <script>
     let globalLeftData = [];
-    let globalRightData = [];
+    let globalRtData = [];
+    let globalSessionData = [];
     let globalStatusData = [];
 
     const leftBox = document.getElementById('out1_left');
-    const rightBox = document.getElementById('out1_right');
+    const rtBox = document.getElementById('out1_rt');
+    const sessionBox = document.getElementById('out1_session');
     const syncCheck = document.getElementById('syncScroll');
-    let isSyncingLeft = false, isSyncingRight = false;
+    let isSyncing = false;
 
-    leftBox.onscroll = function() {
-        if (!syncCheck.checked || isSyncingLeft) return;
-        isSyncingRight = true;
-        rightBox.scrollTop = this.scrollTop;
-        rightBox.scrollLeft = this.scrollLeft;
-        setTimeout(() => isSyncingRight = false, 10);
-    };
-    rightBox.onscroll = function() {
-        if (!syncCheck.checked || isSyncingRight) return;
-        isSyncingLeft = true;
-        leftBox.scrollTop = this.scrollTop;
-        leftBox.scrollLeft = this.scrollLeft;
-        setTimeout(() => isSyncingLeft = false, 10);
-    };
+    function syncScrollFrom(source) {
+        if (!syncCheck.checked || isSyncing) return;
+        isSyncing = true;
+        [leftBox, rtBox, sessionBox].forEach(box => {
+            if (box !== source) {
+                box.scrollTop = source.scrollTop;
+                box.scrollLeft = source.scrollLeft;
+            }
+        });
+        setTimeout(() => isSyncing = false, 10);
+    }
+
+    leftBox.onscroll = function() { syncScrollFrom(this); };
+    rtBox.onscroll = function() { syncScrollFrom(this); };
+    sessionBox.onscroll = function() { syncScrollFrom(this); };
 
     function processSplit() {
         const input = document.getElementById('input1').value;
         const lines = input.replace(/\r\n?/g, '\n').split('\n');
 
         globalLeftData = [];
-        globalRightData = [];
+        globalRtData = [];
+        globalSessionData = [];
         globalStatusData = [];
 
         let successCount = 0;
@@ -301,13 +313,14 @@
             // 固定格式：
             // 账号----密码----RT----邮箱密码----Session Token
             //
-            // 只切前 4 个分隔位置；如果 Session Token 本身含有 ----，
-            // 后面的内容会重新拼回 Session Token，避免数据被截断。
+            // 如果 Session Token 本身含有 ----，
+            // 第 5 段之后的内容会重新拼回 Session Token，避免数据被截断。
             const parts = line.split('----');
 
             if (parts.length < 5) {
                 globalLeftData.push(line);
-                globalRightData.push('【⚠️ 格式错误：字段不足 5 段】');
+                globalRtData.push('【⚠️ 格式错误：字段不足 5 段】');
+                globalSessionData.push('【⚠️ 格式错误：字段不足 5 段】');
                 globalStatusData.push('应为：账号----密码----RT----邮箱密码----Session Token');
                 warningCount++;
                 return;
@@ -321,32 +334,32 @@
 
             const leftResult = `${account}----${password}----${emailPassword}`;
 
-            if (!account || !password || !emailPassword || !sessionToken) {
-                globalLeftData.push(leftResult);
-                globalRightData.push(sessionToken || '【⚠️ Session Token 为空】');
+            globalLeftData.push(leftResult);
+            globalRtData.push(rt || '【⚠️ RT 为空】');
+            globalSessionData.push(sessionToken || '【⚠️ Session Token 为空】');
+
+            if (!account || !password || !rt || !emailPassword || !sessionToken) {
                 globalStatusData.push('存在空字段，请人工核对');
                 warningCount++;
                 return;
             }
 
             if (!/^rt(?:\.|_|-)/i.test(rt)) {
-                globalLeftData.push(leftResult);
-                globalRightData.push(sessionToken);
-                globalStatusData.push('第 3 段不像 RT，但已按固定格式移除');
+                globalStatusData.push('第 3 段不像 RT，但仍已单独输出');
                 warningCount++;
                 return;
             }
 
-            globalLeftData.push(leftResult);
-            globalRightData.push(sessionToken);
-            globalStatusData.push('格式正确：RT 已移除，Session Token 已分离');
+            globalStatusData.push('格式正确：账号信息、RT、Session Token 已分别输出');
             successCount++;
         });
 
         document.getElementById('out1_left').value = globalLeftData.join('\n');
-        document.getElementById('out1_right').value = globalRightData.join('\n');
+        document.getElementById('out1_rt').value = globalRtData.join('\n');
+        document.getElementById('out1_session').value = globalSessionData.join('\n');
         document.getElementById('count1a').innerText = globalLeftData.length + ' 行';
-        document.getElementById('count1b').innerText = globalRightData.length + ' 行';
+        document.getElementById('count1b').innerText = globalRtData.length + ' 行';
+        document.getElementById('count1c').innerText = globalSessionData.length + ' 行';
         document.getElementById('checkArea').style.display = 'none';
 
         const summary = document.getElementById('splitSummary');
@@ -369,16 +382,19 @@
             const tr = document.createElement('tr');
             const tdIdx = document.createElement('td');
             const tdAcc = document.createElement('td');
+            const tdRt = document.createElement('td');
             const tdToken = document.createElement('td');
             const tdStatus = document.createElement('td');
 
             tdIdx.className = 'idx-col';
             tdIdx.textContent = i + 1;
             tdAcc.textContent = globalLeftData[i];
-            tdToken.textContent = globalRightData[i];
+            tdRt.textContent = globalRtData[i];
+            tdToken.textContent = globalSessionData[i];
             tdStatus.textContent = globalStatusData[i] || '';
 
-            const hasWarning = globalRightData[i].includes('⚠️') ||
+            const hasWarning = globalRtData[i].includes('⚠️') ||
+                globalSessionData[i].includes('⚠️') ||
                 (globalStatusData[i] && (
                     globalStatusData[i].includes('请人工核对') ||
                     globalStatusData[i].includes('不像 RT') ||
@@ -386,12 +402,12 @@
                 ));
 
             tdStatus.className = hasWarning ? 'status-warn' : 'status-ok';
-            if (globalRightData[i].includes('⚠️')) {
-                tdToken.className = 'status-warn';
-            }
+            if (globalRtData[i].includes('⚠️')) tdRt.className = 'status-warn';
+            if (globalSessionData[i].includes('⚠️')) tdToken.className = 'status-warn';
 
             tr.appendChild(tdIdx);
             tr.appendChild(tdAcc);
+            tr.appendChild(tdRt);
             tr.appendChild(tdToken);
             tr.appendChild(tdStatus);
             tbody.appendChild(tr);
@@ -464,11 +480,13 @@
     function clear1() {
         document.getElementById('input1').value = '';
         document.getElementById('out1_left').value = '';
-        document.getElementById('out1_right').value = '';
+        document.getElementById('out1_rt').value = '';
+        document.getElementById('out1_session').value = '';
         document.getElementById('checkArea').style.display = 'none';
-        globalLeftData = []; globalRightData = []; globalStatusData = [];
+        globalLeftData = []; globalRtData = []; globalSessionData = []; globalStatusData = [];
         document.getElementById('count1a').innerText = '0 行';
         document.getElementById('count1b').innerText = '0 行';
+        document.getElementById('count1c').innerText = '0 行';
         document.getElementById('splitSummary').innerHTML = '';
     }
     function clear2() {
