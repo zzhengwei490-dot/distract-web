@@ -249,8 +249,14 @@
             <div class="format-hint">
                 自动识别 <b>卡ID + 16 位卡号 + 有效期 + 3 位 CVV</b>，表头可一起粘贴并自动忽略。<br>
                 字段之间支持 1 个或多个空格、Tab；卡ID仅用于识别，不会输出。<br>
-                有效期统一输出为 <b>MM/YY</b>，次数统一固定为 <b>4</b>，最终格式固定为：
-                <b>{card_number}---{expires}---{cvc}---4</b>
+                有效期统一输出为 <b>MM/YY</b>，可在下方自定义卡片可用次数，最终格式固定为：
+                <b>{card_number}---{expires}---{cvc}---{次数}</b>
+            </div>
+
+            <div class="param-row" style="margin-top:14px;">
+                <label for="cardUseCount">卡片可用次数：</label>
+                <input id="cardUseCount" class="param-input" type="number" min="1" step="1" value="4" inputmode="numeric">
+                <span class="param-hint">默认 4 次，可自定义为 1、2、3、4……</span>
             </div>
 
             <div class="btn-group">
@@ -421,8 +427,17 @@
     // 功能2：银行卡格式批量转换
     function processCardConvert() {
         const input = document.getElementById('input2').value;
+        const useCountInput = document.getElementById('cardUseCount');
+        const useCount = Number(useCountInput.value);
+
         if (!input.trim()) {
             alert('请先输入需要转换的卡片数据！');
+            return;
+        }
+
+        if (!Number.isInteger(useCount) || useCount < 1) {
+            alert('卡片可用次数必须填写大于等于 1 的整数！');
+            useCountInput.focus();
             return;
         }
 
@@ -473,7 +488,7 @@
             }
 
             const expires = `${month}/${year}`;
-            results.push(`${cardNumber}---${expires}---${cvc}---4`);
+            results.push(`${cardNumber}---${expires}---${cvc}---${useCount}`);
         });
 
         document.getElementById('out2').value = results.join('\n');
@@ -502,6 +517,7 @@
     function clear2() {
         document.getElementById('input2').value = '';
         document.getElementById('out2').value = '';
+        document.getElementById('cardUseCount').value = '4';
         document.getElementById('count2').innerText = '0 行';
     }
     async function copyText(id) {
