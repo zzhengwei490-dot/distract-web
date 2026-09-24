@@ -244,11 +244,12 @@
         </div>
         <div class="col">
             <label>输入卡片数据（每行一条，字段之间空格数量可不一致）:</label>
-            <textarea id="input2" style="height: 150px;" placeholder="支持示例：&#10;4361208114916582    04/30    430&#10;4361208114004975        12/29        258&#10;&#10;也支持 Tab、多个空格混合输入。"></textarea>
+            <textarea id="input2" style="height: 150px;" placeholder="支持示例：&#10;卡ID                             卡号                           有效期    CVV&#10;2102764569876369416    5556597906324712    09/28     123&#10;2102764569876369410    5556597902208604    09/28     851&#10;2102764569876369413    5556597904705607    09/28     779&#10;&#10;支持空格 / Tab 混合输入，表头会自动忽略。"></textarea>
 
             <div class="format-hint">
-                自动识别 <b>16 位卡号 + 有效期 + 3 位 CVV</b>。字段之间可以是 1 个或多个空格、Tab。<br>
-                有效期统一输出为 <b>MM/YY</b>，最终格式固定为：
+                自动识别 <b>卡ID + 16 位卡号 + 有效期 + 3 位 CVV</b>，表头可一起粘贴并自动忽略。<br>
+                字段之间支持 1 个或多个空格、Tab；卡ID仅用于识别，不会输出。<br>
+                有效期统一输出为 <b>MM/YY</b>，次数统一固定为 <b>4</b>，最终格式固定为：
                 <b>{card_number}---{expires}---{cvc}---4</b>
             </div>
 
@@ -433,10 +434,18 @@
             const line = rawLine.trim();
             if (!line) return;
 
-            // 字段之间支持任意数量的空格或 Tab。
+            // 自动忽略表头，例如：
+            // 卡ID    卡号    有效期    CVV
+            if (/卡ID/i.test(line) && /卡号/i.test(line) && /有效期/i.test(line) && /CVV/i.test(line)) {
+                return;
+            }
+
+            // 新格式：
+            // 卡ID + 16位卡号 + 有效期 + 3位CVV
+            // 字段之间支持任意数量空格或 Tab。
             // 有效期支持 MM/YY、MM/YYYY，也兼容 - | \ 以及纯数字写法。
             const match = line.match(
-                /^(\d{16})\s+((?:0[1-9]|1[0-2])(?:[\/|\\-]?\d{2}|[\/|\\-]?\d{4}))\s+(\d{3})$/
+                /^(\d+)\s+(\d{16})\s+((?:0[1-9]|1[0-2])(?:[\/|\\-]?\d{2}|[\/|\\-]?\d{4}))\s+(\d{3})$/
             );
 
             if (!match) {
@@ -444,9 +453,10 @@
                 return;
             }
 
-            const cardNumber = match[1];
-            const expiresRaw = match[2].replace(/[\/|\\-]/g, '');
-            const cvc = match[3];
+            // match[1] 为卡ID，仅用于识别，不输出
+            const cardNumber = match[2];
+            const expiresRaw = match[3].replace(/[\/|\\-]/g, '');
+            const cvc = match[4];
 
             let month = '';
             let year = '';
@@ -470,7 +480,7 @@
         document.getElementById('count2').innerText = results.length + ' 行';
 
         if (results.length === 0) {
-            alert('没有识别到有效数据。请确认格式为：16位卡号 + 有效期 + 3位CVV。');
+            alert('没有识别到有效数据。请确认格式为：卡ID + 16位卡号 + 有效期 + 3位CVV。');
         } else if (invalidLines.length > 0) {
             alert(`转换完成：成功 ${results.length} 行；未识别 ${invalidLines.length} 行（第 ${invalidLines.join('、')} 行）。`);
         }
