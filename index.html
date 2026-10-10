@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量数据分离与核对工具 V2.9</title>
+    <title>批量数据分离与核对工具 V3.0</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -163,21 +163,21 @@
 </head>
 <body>
 <div class="container">
-    <h1>🛠️ 数据分离与提取助手 V2.9</h1>
+    <h1>🛠️ 数据分离与提取助手 V3.0</h1>
 
     <!-- 功能1 -->
     <div class="card">
         <div class="card-header">
-            <span>功能 1: 账号、RT 与 Session Token 分离</span>
+            <span>功能 1: 账号信息、RT 与 Session 分离</span>
             <span class="badge">分离模式</span>
         </div>
         <div class="col">
             <label>输入原始数据 (每行一条):</label>
-            <textarea id="input1" style="height: 120px;" placeholder="固定输入格式（每行一条）：&#10;账号----密码----rt.1.xxxxx----邮箱密码----session token&#10;&#10;处理后分成 3 部分：&#10;1. 账号----密码----邮箱密码&#10;2. RT&#10;3. Session Token"></textarea>
+            <textarea id="input1" style="height: 120px;" placeholder="输入格式（每行一条）：&#10;账号---密码---邮箱密码---2fa---rt---session&#10;&#10;处理后分成 3 部分：&#10;1. 账号---密码---邮箱密码---2fa&#10;2. RT&#10;3. Session"></textarea>
             <div class="format-hint">
-                固定按 <b>账号----密码----RT----邮箱密码----Session Token</b> 识别。<br>
-                执行后分别输出 3 部分：<b>账号----密码----邮箱密码</b>、第 3 段 <b>RT</b>、第 5 段 <b>Session Token</b>。<br>
-                如果 Session Token 内容本身包含 <b>----</b>，也会自动合并回第 5 段，避免被截断。
+                输入格式：<b>账号---密码---邮箱密码---2fa---rt---session</b>（兼容 <b>----</b> 四横线分隔）。<br>
+                输出 3 部分：<b>账号---密码---邮箱密码---2fa</b>、第 5 段 <b>RT</b>、第 6 段 <b>Session</b>。<br>
+                仅拆分前 5 个分隔符；Session 内即使包含横线分隔符，也会完整保留。
             </div>
             <div class="btn-group">
                 <button class="btn-primary" onclick="processSplit()">⚡ 1. 执行分离</button>
@@ -196,7 +196,7 @@
                         <thead>
                             <tr>
                                 <th class="idx-col">行号</th>
-                                <th>账号----密码----邮箱密码</th>
+                                <th>账号---密码---邮箱密码---2fa</th>
                                 <th>RT</th>
                                 <th>Session Token</th>
                                 <th>识别状态</th>
@@ -210,17 +210,17 @@
             <div class="row">
                 <div class="col">
                     <label>
-                        账号----密码----邮箱密码 <span id="count1a" class="badge">0 行</span>
+                        账号---密码---邮箱密码---2fa <span id="count1a" class="badge">0 行</span>
                         <button class="btn-copy" onclick="copyText('out1_left')">复制</button>
                     </label>
-                    <textarea id="out1_left" readonly style="height: 360px;" placeholder="这里显示：账号----密码----邮箱密码" spellcheck="false"></textarea>
+                    <textarea id="out1_left" readonly style="height: 360px;" placeholder="这里显示：账号---密码---邮箱密码---2fa" spellcheck="false"></textarea>
                 </div>
                 <div class="col">
                     <label>
                         RT <span id="count1b" class="badge">0 行</span>
                         <button class="btn-copy" onclick="copyText('out1_rt')">复制</button>
                     </label>
-                    <textarea id="out1_rt" readonly style="height: 360px;" placeholder="这里显示第 3 段 RT（原样保留）" spellcheck="false"></textarea>
+                    <textarea id="out1_rt" readonly style="height: 360px;" placeholder="这里显示第 5 段 RT（原样保留）" spellcheck="false"></textarea>
                 </div>
                 <div class="col">
                     <label>
@@ -230,7 +230,7 @@
                         </label>
                         <button class="btn-copy" onclick="copyText('out1_session')">复制</button>
                     </label>
-                    <textarea id="out1_session" readonly style="height: 360px;" placeholder="这里显示第 5 段 Session Token（原样保留）" spellcheck="false"></textarea>
+                    <textarea id="out1_session" readonly style="height: 360px;" placeholder="这里显示第 6 段 Session（原样保留）" spellcheck="false"></textarea>
                 </div>
             </div>
         </div>
@@ -317,42 +317,48 @@
             const line = rawLine.trim();
             if (!line) return;
 
-            // 固定格式：
-            // 账号----密码----RT----邮箱密码----Session Token
-            //
-            // 如果 Session Token 本身含有 ----，
-            // 第 5 段之后的内容会重新拼回 Session Token，避免数据被截断。
-            const parts = line.split('----');
+            // 输入字段：账号---密码---邮箱密码---2fa---rt---session
+            // 同时兼容原数据的“----”四横线分隔符。
+            // 仅查找前 5 个分隔符，保留 Session 原始内容（包括其中可能存在的 --- 或 ----）。
+            const separatorMatch = line.match(/-{3,4}/);
+            const separator = separatorMatch ? separatorMatch[0] : null;
+            const parts = [];
+            let cursor = 0;
+
+            if (separator) {
+                for (let i = 0; i < 5; i++) {
+                    const endIndex = line.indexOf(separator, cursor);
+                    if (endIndex < 0) break;
+                    parts.push(line.slice(cursor, endIndex).trim());
+                    cursor = endIndex + separator.length;
+                }
+            }
 
             if (parts.length < 5) {
                 globalLeftData.push(line);
-                globalRtData.push('【⚠️ 格式错误：字段不足 5 段】');
-                globalSessionData.push('【⚠️ 格式错误：字段不足 5 段】');
-                globalStatusData.push('应为：账号----密码----RT----邮箱密码----Session Token');
+                globalRtData.push('【⚠️ 格式错误：字段不足 6 段】');
+                globalSessionData.push('【⚠️ 格式错误：字段不足 6 段】');
+                globalStatusData.push('应为：账号---密码---邮箱密码---2fa---rt---session');
                 warningCount++;
                 return;
             }
 
-            const account = (parts[0] || '').trim();
-            const password = (parts[1] || '').trim();
-            const rt = (parts[2] || '').trim();
-            const emailPassword = (parts[3] || '').trim();
-            const sessionToken = parts.slice(4).join('----').trim();
-
-            const leftResult = `${account}----${password}----${emailPassword}`;
+            const [account, password, emailPassword, twoFa, rt] = parts;
+            const sessionToken = line.slice(cursor).trim();
+            const leftResult = `${account}---${password}---${emailPassword}---${twoFa}`;
 
             globalLeftData.push(leftResult);
             globalRtData.push(rt || '【⚠️ RT 为空】');
             globalSessionData.push(sessionToken || '【⚠️ Session Token 为空】');
 
-            if (!account || !password || !rt || !emailPassword || !sessionToken) {
+            if (!account || !password || !emailPassword || !twoFa || !rt || !sessionToken) {
                 globalStatusData.push('存在空字段，请人工核对');
                 warningCount++;
                 return;
             }
 
             if (!/^rt(?:\.|_|-)/i.test(rt)) {
-                globalStatusData.push('第 3 段不像 RT，但仍已单独输出');
+                globalStatusData.push('第 5 段不像 RT，但仍已单独输出');
                 warningCount++;
                 return;
             }
